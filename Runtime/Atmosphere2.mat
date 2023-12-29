@@ -13,8 +13,8 @@ Material:
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
   - _STREAM_ON
-  m_InvalidKeywords:
-  - _UNDERFADE_ON
+  - _USE_CLOUDS
+  m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
@@ -25,10 +25,6 @@ Material:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
-    - _MainTex:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
     - _SkyTexture:
         m_Texture: {fileID: 8600000, guid: b2468c18c2eff57479228c6ee938ae2c, type: 2}
         m_Scale: {x: 1, y: 1}
@@ -37,18 +33,16 @@ Material:
         m_Texture: {fileID: 8900000, guid: 6065f4c903d4b334b9a0b7cc8d5969a5, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
-    - _Transmittance:
-        m_Texture: {fileID: 8600000, guid: 070e2acba9161bf48addeb8c59febe85, type: 2}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
     - _noiseMap:
         m_Texture: {fileID: 2800000, guid: 5ff536ac9b3028049bb5fb4eff2bcb93, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _NoClouds: 0
     - _StarIntensity: 1
     - _StarTextureIntensity: 1
+    - _UseClouds: 1
     - _UseStars: 0
     - _UseStarsTexture: 1
     - _boost: 1.1

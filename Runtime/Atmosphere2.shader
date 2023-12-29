@@ -1,4 +1,4 @@
-Shader "Silent/Skybox/Atmosphere2"
+Shader "Silent/Skybox/Sky Canvas"
 {
     Properties
     {
@@ -12,41 +12,43 @@ Shader "Silent/Skybox/Atmosphere2"
 
 		// Cloud parameters
 		[Header(TowelCloud)]
+        [Toggle(_USE_CLOUDS)]_UseClouds("Enable Clouds", Float) = 1
+        [Space]
 		_noiseMap("Cloud Noise Map", 2D) = "white" {}
 		_scale ("Cloud Size (Higher: less repetition)", Float) = 55
 		_cloudy ("Cloudiness", Range (0, 1)) = 0.5
 		_soft ("Cloud Softness", Range (0.0001, 0.9999)) = 0.4
-		[Header(Horizon)]
-		[Toggle]_underFade ("underFade: Fade out clouds at the bottom", Float) = 1
-		_underFadeStart ("underFadeStart: Start fading position", Range (-1, 1)) = -0.5
-		_underFadeWidth ("underFadeWidth: Fade gradient width", Range (0.0001, 0.9999)) = 0.2
 		[Header(Movement)]
-		_moveRotation ("moveRotation: Cloud movement direction", Range (0, 360)) = 0
-		_speed_parameter ("speed: Cloud speed", Float) = 1
-		_shapeSpeed_parameter ("shapeSpeed: Cloud deformation amount", Float) = 1
-		_speedOffset ("speedOffset: Speed difference in fine parts of clouds", Float) = 0.2
-		_speedSlide ("speedSlide: Lateral speed of fine parts of clouds", Float) = 0.1
-		[Header(Surface Wind)]
-		_faceWindScale_parameter ("faceWindScale: Surface wind size", Float) = 1
-		_faceWindForce_parameter ("faceWindForce: Surface wind strength", Float) = 1
-		_faceWindMove ("faceWindMove: Surface wind movement speed", Float) = 1.3
-		_faceWindMoveSlide ("faceWindMoveSlide: Movement speed of fine parts of surface wind", Float) = 1.8
+		_moveRotation ("Cloud Movement Direction", Range (0, 360)) = 0
+		_speed_parameter ("Cloud Speed", Float) = 1
+		_shapeSpeed_parameter ("Cloud Deformation Amount", Float) = 1
+		_speedOffset ("Cloud Fine Part Speed Difference", Float) = 0.2
+		_speedSlide ("Cloud Fine Part Lateral Speed", Float) = 0.1
+		[Header(Horizon)]
+		[ToggleUI]_underFade ("Fade Clouds Below", Float) = 1
+		_underFadeStart ("Start Fading Position", Range (-1, 1)) = -0.5
+		_underFadeWidth ("Fade Gradient Width", Range (0.0001, 0.9999)) = 0.2
+		[Header(Cloud Surface Wind)]
+		_faceWindScale_parameter ("Surface Wind Size", Float) = 1
+		_faceWindForce_parameter ("Surface Wind Strength", Float) = 1
+		_faceWindMove ("Surface Wind Movement Speed", Float) = 1.3
+		_faceWindMoveSlide ("Surface Wind Fine Part Movement Speed", Float) = 1.8
 		[Header(Distant Wind)]
-		_farWindDivision ("farWindDivision: Number of divisions for distant wind", Int) = 35
-		_farWindForce_parameter ("farWindForce: Distant wind strength", Float) = 1
-		_farWindMove ("farWindMove: Distant wind movement speed", Float) = 2
-		_farWindTopEnd ("farWindTopEnd: Position where distant wind disappears at the top", Float) = 0.5
-		_farWindTopStart ("farWindTopStart: Position where distant wind starts to weaken at the top", Float) = 0.3
-		_farWindBottomStart ("farWindBottomStart: Position where distant wind starts to weaken at the bottom", Float) = 0.1
-		_farWindBottomEnd ("farWindBottomEnd: Position where distant wind disappears at the bottom", Float) = -0.1
+		_farWindDivision ("Distant Wind Sections", Int) = 35
+		_farWindForce_parameter ("Distant Wind Strength", Float) = 1
+		_farWindMove ("Distant Wind Movement Speed", Float) = 2
+		_farWindTopEnd ("Distant Wind Top Fade Position", Float) = 0.5
+		_farWindTopStart ("Distant Wind Top Start Fading Position", Float) = 0.3
+		_farWindBottomStart ("Distant Wind Bottom Start Fading Position", Float) = 0.1
+		_farWindBottomEnd ("Distant Wind Bottom Fade Position", Float) = -0.1
 		[Header(Airflow)]
-		[Toggle] _stream ("stream: Airflow", Float) = 1
-		_streamForce ("streamForce: Airflow strength", Float) = 5
-		_streamScale ("streamScale: Airflow size", Float) = 5
-		_streamMove ("streamMove: Airflow movement speed", Float) = 1.5
-		[Header(Etc)]
-		_fbmScaleUnder ("fbmScaleUnder: Deformation value of fine parts of clouds", Float) = 0.43
-		_chine ("chine: Softness of cloud ridges", Float) = 0.5
+		[Toggle(_STREAM_ON)] _stream ("Use Airflow Effect", Float) = 1
+		_streamForce ("Airflow Strength", Float) = 5
+		_streamScale ("Airflow Size", Float) = 5
+		_streamMove ("Airflow Movement Speed", Float) = 1.5
+		[Header(Etcetera)]
+		_fbmScaleUnder ("Cloud Fine Part Deformation Value", Float) = 0.43
+		_chine ("Cloud Ridge Softness", Float) = 0.5
 
         // Unused parameters.
 		// [Header(Rimlight)]
@@ -66,6 +68,7 @@ Shader "Silent/Skybox/Atmosphere2"
         Cull Off ZWrite Off
         LOD 100
         CGINCLUDE
+            #pragma shader_feature_local _USE_CLOUDS
             #pragma shader_feature_local _STREAM_ON
 
             #include "UnityCG.cginc"
@@ -77,6 +80,7 @@ Shader "Silent/Skybox/Atmosphere2"
         Pass
         {
             Name "FORWARD"
+
             CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag
@@ -150,12 +154,14 @@ Shader "Silent/Skybox/Atmosphere2"
                 // Clouds first, as the sky radiance sampling depends on the cloud thickness.
             
 				CloudOutputData cloud = (CloudOutputData)0;
+                #if defined(_USE_CLOUDS)
                 if (atmos_dist > 1000)
                 {
                     float3 ray_dir = normalize(i.view_ray);
                     float3 ray_origin = float3(0.0, 0.0, EYE_DISTANCE_TO_EARTH_CENTER);
                     cloud = GetCloudAtmosphere(ray_origin, -ray_dir);
                 }
+                #endif
 
                 // Sky radiance sampling 
                 float phi = atan2(ray_dir.z, ray_dir.x);
