@@ -1,0 +1,91 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Atmosphere2
+  m_Shader: {fileID: 4800000, guid: 188a9b43ba2ae824ca0127ba6d2c9c34, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords:
+  - _STREAM_ON
+  m_InvalidKeywords:
+  - _UNDERFADE_ON
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _MainTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SkyTexture:
+        m_Texture: {fileID: 8600000, guid: b2468c18c2eff57479228c6ee938ae2c, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _StarTexture:
+        m_Texture: {fileID: 8900000, guid: 6065f4c903d4b334b9a0b7cc8d5969a5, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Transmittance:
+        m_Texture: {fileID: 8600000, guid: 070e2acba9161bf48addeb8c59febe85, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _noiseMap:
+        m_Texture: {fileID: 2800000, guid: 5ff536ac9b3028049bb5fb4eff2bcb93, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _StarIntensity: 1
+    - _StarTextureIntensity: 1
+    - _UseStars: 0
+    - _UseStarsTexture: 1
+    - _boost: 1.1
+    - _chine: 0.5
+    - _cloudy: 0.44
+    - _faceWindForce_parameter: 1
+    - _faceWindMove: 1.3
+    - _faceWindMoveSlide: 1.8
+    - _faceWindScale_parameter: 1
+    - _farWindBottomEnd: -0.1
+    - _farWindBottomStart: 0.1
+    - _farWindDivision: 35
+    - _farWindForce_parameter: 1
+    - _farWindMove: 2
+    - _farWindTopEnd: 0.5
+    - _farWindTopStart: 0.3
+    - _fbmScaleUnder: 0.43
+    - _moveRotation: 261
+    - _rimForce: 0.5
+    - _rimNarrow: 2
+    - _scale: 55
+    - _scattering: 0
+    - _scatteringForce: 0.8
+    - _scatteringNarrow: 1
+    - _scatteringRange: 0.3
+    - _shapeSpeed_parameter: 1
+    - _soft: 0.698
+    - _speedOffset: 0.2
+    - _speedSlide: 0.1
+    - _speed_parameter: 6
+    - _stream: 1
+    - _streamForce: 5
+    - _streamMove: 1.5
+    - _streamScale: 5
+    - _underFade: 1
+    - _underFadeStart: -0.5
+    - _underFadeWidth: 0.2
+    m_Colors:
+    - _scatteringColor: {r: 1, g: 1, b: 1, a: 1}
+  m_BuildTextureStacks: []

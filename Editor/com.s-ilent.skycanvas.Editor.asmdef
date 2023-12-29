@@ -1,0 +1,14 @@
+{
+  "name": "com.s-ilent.skycanvas.Editor",
+  "references": [
+    "com.s-ilent.skycanvas"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "autoReferenced": true,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "defineConstraints": [],
+  "optionalUnityReferences": []
+}

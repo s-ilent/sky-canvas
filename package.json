@@ -1,0 +1,15 @@
+{
+  "name": "com.s-ilent.skycanvas",
+  "displayName": "Sky Canvas",
+  "version": "0.0.1",
+  "description": "Atmosphere shader for Unity/VRchat.",
+  "dependencies": {},
+  "gitDependencies": {},
+  "vpmDependencies": {},
+  "author": {
+    "name": "Silent",
+    "email": "silent@noemail.xyz"
+  },
+  "legacyFolders": {},
+  "legacyFiles": {}
+}
