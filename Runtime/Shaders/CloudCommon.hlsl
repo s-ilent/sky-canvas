@@ -131,7 +131,7 @@ float phase(float a, float forwardScattering, float backScattering, float phaseF
 }
 
 // From https://github.com/clayjohn/godot-volumetric-cloud-demo
-
+// Cloud Raymarching based on: A. Schneider. “The Real-Time Volumetric Cloudscapes Of Horizon: Zero Dawn”. ACM SIGGRAPH. Los Angeles, CA: ACM SIGGRAPH, 2015. Web. 26 Aug. 2015.
 
 // Phase function
 float henyey_greenstein(float cos_theta, float g) {

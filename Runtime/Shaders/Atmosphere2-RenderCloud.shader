@@ -38,24 +38,9 @@ Shader "Silent/CustomRenderTexture/Clouds"
 
         sampler3D _SkyTexture;
 
-/*
-float noise(float3 pos)
-{
-    return tanoise3_1d(pos);
-}
-            
-float modNoise(float3 q)
-{
-    float f;
-    f  = 0.50000*noise( q ); q = q*2.02;
-    f += 0.25000*noise( q ); q = q*2.03;
-    f += 0.12500*noise( q ); q = q*2.01;
-    f += 0.06250*noise( q );
-    return f;
-}
-*/
-
 // Cloud rendering based on https://github.com/clayjohn/godot-volumetric-cloud-demo
+// Cloud Raymarching based on: A. Schneider. “The Real-Time Volumetric Cloudscapes Of Horizon: Zero Dawn”. ACM SIGGRAPH. Los Angeles, CA: ACM SIGGRAPH, 2015. Web. 26 Aug. 2015.
+// Additions based on "Realistic Real-Time Sky Dome Rendering in 'Gran Turismo 7'" by Kentaro Suzuki, Kenichiro Yasutomi
 
 float3 atmosphere(float3 rayDir)
 {
