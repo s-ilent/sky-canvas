@@ -353,13 +353,13 @@ float2 SampleBlueNoise(float2 texcoords, float4 screenPos, float4 scaleOffset, f
         float4(floor(_Time.y * _blueNoise_TexelSize.zw), 0.0, 0.0)) * _blueNoise_TexelSize.xy);
     float timeScaled = _Time.y * 3.0;
 
-    float4 lerpResult = lerp(blueNoise, float4(blueNoise.gb, 0.0, 0.0), saturate(floor((timeScaled % 0.3333333) * 12.0)));
-    lerpResult = lerp(lerpResult, float4(blueNoise.br, 0.0, 0.0), saturate(floor((timeScaled % 0.3333333) * 6.0)));
+    float2 lerpResult = lerp(blueNoise, blueNoise.gb, saturate(floor((timeScaled % 0.3333333) * 12.0)));
+    lerpResult = lerp(lerpResult, blueNoise.br, saturate(floor((timeScaled % 0.3333333) * 6.0)));
 
     float2 uv_gradient = float2(ddx(texcoords.x), ddy(texcoords.y));
     float2 uv_clamped = clamp(0.125 / (abs(uv_gradient) * texelSize.zw), float2(-1, -1), float2(1, 1));
 
-    return texelSize * float4(floor(uv_scaled) + frac(uv_scaled) + lerpResult.rg * uv_clamped, 0.0, 0.0);
+    return texelSize * float4(floor(uv_scaled) + frac(uv_scaled) + (lerpResult.rg - 0.5) * uv_clamped, 0.0, 0.0);
 }
 
 
