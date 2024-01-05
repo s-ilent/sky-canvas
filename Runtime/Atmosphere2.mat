@@ -39,6 +39,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _Exposure: 10
     - _NoClouds: 0
     - _StarIntensity: 1
     - _StarTextureIntensity: 1
