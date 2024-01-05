@@ -5,8 +5,17 @@ Shader "Silent/Skybox/Sky Canvas"
         [NoScaleOffset]_SkyTexture ("Sky Texture", 3D) = "" {}
         [NoScaleOffset]_CloudTexture ("Cloud Texture", 2D) = "" {}
 
-        [Header(Cloud Settings are in the cloud CRT)]
         _Exposure("Main Exposure", Range(0, 10)) = 1.0
+        _SunIntensity("Sun Disc Intensity", Range(1, 100)) = 50
+        [Space]
+        _SkyDensity ("Sky Density (dark cloudiness)", Range(0, 1)) = 0.0
+
+        [Header(Cloud settings ... simulation settings are in the cloud CRT)]
+        [ToggleUI]_HideClouds("Hide Clouds", Float) = 0.0
+        [ToggleUI]_CloudReflection("Show Cloud Reflection", Float) = 1.0
+        _CloudAmbientColDay("Cloud Ambient Colour Daytime", Color) = (1, 1, 1, 1)
+        _CloudAmbientColNight("Cloud Ambient Colour Night", Color) = (0.1, 0.1, 0.1, 1)
+        _CloudAmbientColMidnight("Cloud Ambient Colour Midnight", Color) = (0.1, 0.1, 0.1, 1)
 
         [Header(Night Sky)]
         [ToggleUI]_UseStars("Use Procedural Stars", Float) = 1.0
@@ -14,6 +23,7 @@ Shader "Silent/Skybox/Sky Canvas"
         [ToggleUI]_UseStarsTexture("Use Star Texture", Float) = 0.0
         _StarTexture("Star Texture", Cube) = "" {}
         _StarTextureIntensity("Stars Texture Intensity", Range(0, 10)) = 0.1
+        _RotationParams("Rotation Params (axis, angle)", Vector) = (1, 0, 0, 0)
         
         [HideInInspector][NonModifiableTextureData]_TANoiseTex ("TANoise", 2D) = "white" {}
         [HideInInspector][NonModifiableTextureData]_blueNoise("Blue Noise", 2D) = "white" {}
@@ -66,8 +76,15 @@ Shader "Silent/Skybox/Sky Canvas"
 
             sampler2D _CloudTexture;
             float4 _CloudTexture_TexelSize;
+            
+            float _CloudReflection;
+            float4 _CloudAmbientColDay;
+            float4 _CloudAmbientColNight;
+            float4 _CloudAmbientColMidnight;
+            float _HideClouds;
 
             float4 _LightColor0;
+            float _SunIntensity;
 
             UNITY_DECLARE_TEXCUBE(_StarTexture);
 
@@ -77,6 +94,8 @@ Shader "Silent/Skybox/Sky Canvas"
             float _StarTextureIntensity;
 
             float _Exposure;
+            float _SkyDensity;
+            float4 _RotationParams;
 
             sampler2D _NoiseMap;
             float _NoiseScale;
@@ -108,6 +127,18 @@ Shader "Silent/Skybox/Sky Canvas"
 
                 return o;
             }
+
+            float2 directionToSkyUv(float3 rayDir)
+            {
+                float phi = atan2(rayDir.z, rayDir.x);
+                float theta = asin(rayDir.y);
+                
+                float azimuth = phi / PI * 0.5 + 0.5;
+
+                // Undo the non-linear transformation from the sky-view LUT
+                float elev = sqrt(abs(theta) / (PI * 0.5)) * sign(theta) * 0.5 + 0.5;
+                return float2(azimuth, elev);
+            }
     
             float2 GetOppositeSunAzimuthElev(float3 sunDir) {
                 float3 oppSunDir = -sunDir;
@@ -119,6 +150,29 @@ Shader "Silent/Skybox/Sky Canvas"
                 float elev = sqrt(abs(theta) / (PI * 0.5)) * sign(theta) * 0.5 + 0.5;
                 return float2(azimuth, elev);
             }
+
+            float3 rotateVector(float3 target, float3 axis, float angle)
+            {
+                float3x3 rotationMatrix;
+                float cosAngle = cos(angle);
+                float sinAngle = sin(angle);
+                float oneMinusCosAngle = 1.0 - cosAngle;
+
+                rotationMatrix[0][0] = cosAngle + axis.x * axis.x * oneMinusCosAngle;
+                rotationMatrix[0][1] = axis.x * axis.y * oneMinusCosAngle - axis.z * sinAngle;
+                rotationMatrix[0][2] = axis.x * axis.z * oneMinusCosAngle + axis.y * sinAngle;
+
+                rotationMatrix[1][0] = axis.y * axis.x * oneMinusCosAngle + axis.z * sinAngle;
+                rotationMatrix[1][1] = cosAngle + axis.y * axis.y * oneMinusCosAngle;
+                rotationMatrix[1][2] = axis.y * axis.z * oneMinusCosAngle - axis.x * sinAngle;
+
+                rotationMatrix[2][0] = axis.z * axis.x * oneMinusCosAngle - axis.y * sinAngle;
+                rotationMatrix[2][1] = axis.z * axis.y * oneMinusCosAngle + axis.x * sinAngle;
+                rotationMatrix[2][2] = cosAngle + axis.z * axis.z * oneMinusCosAngle;
+
+                return mul(rotationMatrix, target);
+            }
+
 
             fixed4 frag (v2f i) : SV_Target
             {
@@ -145,20 +199,20 @@ Shader "Silent/Skybox/Sky Canvas"
                         t_d = ground_dist;
                     }
                 }
-                float skyGroundFactor = saturate(atmos_dist/1000 - 1);
+                float dayNightFactor = clamp(dot(sunDir, float3(0, 1, 0)), -1, 1);
+                float dayFactor = saturate(dayNightFactor);
+                float nightFactor = saturate(-dayNightFactor);
+                float skyGroundFactor = saturate(atmos_dist/1000 - 1); 
+
+                // When the user raises the density, the sky should get darker to simulate greater degrees of cloudiness.
+                float cloudyLightFactor = lerp(0.01, 1.0, saturate(pow(1.0 - _SkyDensity, 8.0)));
                 
                 // Sky radiance sampling 
-                float phi = atan2(rayDir.z, rayDir.x);
-                float theta = asin(rayDir.y);
-                
-                float azimuth = phi / PI * 0.5 + 0.5;
-
-                // Undo the non-linear transformation from the sky-view LUT
-                float elev = sqrt(abs(theta) / (PI * 0.5)) * sign(theta) * 0.5 + 0.5;
+                float2 skyUVs = directionToSkyUv(rayDir);
 
                 // We could sample the sky once but twice is easier to mess with for clouds
-                float4 skyCol = tex3D(_SkyTexture, float3(azimuth, elev, 0));
-                float4 denseCol = tex3D(_SkyTexture, float3(azimuth, elev, 1));
+                float4 skyCol = tex3D(_SkyTexture, float3(skyUVs, _SkyDensity));
+                float4 denseCol = tex3D(_SkyTexture, float3(skyUVs, 1));
                 
 				// When baking reflection probes, the skybox is not told the colour of the sun
 				// to avoid doubled sun reflections. However, this can look bad visually, especially
@@ -168,24 +222,33 @@ Shader "Silent/Skybox/Sky Canvas"
 				float3 sunRadiance = _LightColor0.xyz / lightColorIntensity; 
 
 				float sunAttenuation = smoothstep(0.9999891, 1, dot(rayDir, sunDir));
-                sunAttenuation *= skyGroundFactor;
+                sunAttenuation *= skyGroundFactor * cloudyLightFactor;
 
                 // Clouds 
-                float2 cloudUVs = directionToGbufferUV(rayDir);
+                float3 cloudAmbientIntensity = lerp(_CloudAmbientColNight, _CloudAmbientColDay, dayFactor);
+                cloudAmbientIntensity = lerp(cloudAmbientIntensity, _CloudAmbientColMidnight, nightFactor);
 
-                // Use a noise texture to warp the top of the sky, where the pixellation is most obvious.
-                float skyUp = (saturate(rayDir.y));
-				float skyDown = (saturate(-rayDir.y));
-                // ((rayDir.xz*_NoiseScale*0.125) / max(skyUp, skyDown))+rayDir.xz
-                float2 noiseUVs = SampleBlueNoise(
+                float3 rayDirMirrored = float3(rayDir.x, abs(rayDir.y), rayDir.z);
+                float2 cloudUVs = directionToGbufferUV(rayDirMirrored);
+
+                // Offset intertexel position with blue noise to hide interpolation artifacts
+                float2 cloudUVsNoisy = SampleBlueNoise(
                     cloudUVs, 
                     float4(i.screenPos.xy, i.vertex.z, i.screenPos.z), 
                     float4((1).xx, (0).xx), 
                     _CloudTexture_TexelSize);
 
                 float3 col = 0;
-                float4 clouds = tex2D(_CloudTexture, noiseUVs);
-                clouds *= (rayDir.y > 0) * skyGroundFactor;
+                float4 clouds = tex2D(_CloudTexture, cloudUVsNoisy);
+
+                // Sampling clouds is cheap so the toggle just fades them out.
+                // Originally used (rayDir.y > 0) but looks too harsh. Clouds continue below the horizon.
+                if (_CloudReflection < 0.5) clouds *= saturate(skyGroundFactor*12);
+                clouds *= _HideClouds? 0 : 1;
+
+                float cloudFadeFactor =  saturate(exp(-clouds.r * 0.00005));
+
+                clouds *= cloudFadeFactor; // todo: distance fade
                 
                 float distanceToCloud, sunLighting, ambientLighting, alpha;
                 distanceToCloud = clouds.r;
@@ -193,31 +256,37 @@ Shader "Silent/Skybox/Sky Canvas"
                 ambientLighting = clouds.b;
                 alpha = clouds.a;
 
+
+                float cloudOcclusion = pow(1.0 - alpha, 1.0);
+
                 // Stars and night sky
 				float3 nightSky = 0.0;
+                // float3 nightRayDir = rotateVector(rayDir, cross(sunDir, float3(0, 1, 0)), _SinTime * 2.0 * PI );
+                float3 nightRayDir = rotateVector(rayDir, _RotationParams.xyz, _RotationParams.w * 2.0 * PI );
+                
                 if (_UseStars)
                 {
-                    float2 sp = convertToSphericalCoordinates(rayDir.xzy).yz;
+                    float2 sp = convertToSphericalCoordinates(nightRayDir.xzy).yz;
 
-                    nightSky += stars(sp, 0) * _StarIntensity;
-                    nightSky = saturate(pow(nightSky, 2.0));
+                    nightSky += stars(sp, 0);
+                    nightSky = saturate(pow(nightSky, 2.0)) * _StarIntensity;
                 }
                 if (_UseStarsTexture)
                 {
-                    nightSky += UNITY_SAMPLE_TEXCUBE(_StarTexture, rayDir) * _StarTextureIntensity;
+                    nightSky += UNITY_SAMPLE_TEXCUBE(_StarTexture, nightRayDir) * _StarTextureIntensity;
                 }
                 // Fade out at horizon smoothly
                 nightSky *= skyGroundFactor;
                 // Fade out at cloud edges
-                nightSky *= 1-alpha;
+                nightSky *= cloudOcclusion;
 
-                float3 directCol = sunLighting * sunRadiance * denseCol; //tex3D(_SkyTexture, float3(azimuth, elev, sunLighting*10));
+                float3 directCol = sunLighting * sunRadiance * denseCol; //tex3D(_SkyTexture, float3(skyUVs, sunLighting*10));
                 //float3 ambientCol = lerp(skyCol, denseCol, ambientLighting) * lerp(0.8, 1.0, ambientLighting); 
                 float3 ambientCol = skyCol; 
-                ambientCol = lerp(ambientCol, 1.0, (ambientLighting)); 
+                ambientCol = lerp(ambientCol, cloudAmbientIntensity, (ambientLighting)); 
                 // todo: at night time, use 1-ambientLighting 
 
-                skyCol.xyz += (1-alpha) * sunAttenuation * _LightColor0.xyz * 50.0;
+                skyCol.xyz += cloudOcclusion * sunAttenuation * _LightColor0.xyz * _SunIntensity;
                 
                 // In real life, stars are always visible, but the atmosphere is too bright for us to see them.
                 // As a workaround we can attenuate the stars by the sky brightness. This avoids needing to deal
@@ -228,7 +297,7 @@ Shader "Silent/Skybox/Sky Canvas"
                 //col.rgb = lerp(skyCol, directCol + ambientCol, alpha);
                 col.rgb = skyCol * (1.0 - alpha) + ambientCol + directCol;
 
-                col *= _Exposure;
+                col *= _Exposure * cloudyLightFactor;
 
                 return float4(col, 1.0);
             }
