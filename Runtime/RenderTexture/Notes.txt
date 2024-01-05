@@ -1,0 +1,5 @@
+# On Performance
+The resolution of clouds should be adjusted on a case-by-case basis. 
+512x512 is enough for many scenarios. 768x768 is good for most people, but the GPU load is very high. 1024x1024 is extreme. 
+There's generally no need to change the Sky texture from the default unless you're targeting really low end hardware.
+Same with Transmittance, although in practise it can be a precomputed texture with no real difference. 
