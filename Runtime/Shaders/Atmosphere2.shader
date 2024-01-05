@@ -246,7 +246,7 @@ Shader "Silent/Skybox/Sky Canvas"
                 if (_CloudReflection < 0.5) clouds *= saturate(skyGroundFactor*12);
                 clouds *= _HideClouds? 0 : 1;
 
-                float cloudFadeFactor =  saturate(exp(-clouds.r * 0.00005));
+                float cloudFadeFactor =  saturate(exp(-clouds.r * 0.00001));
 
                 clouds *= cloudFadeFactor; // todo: distance fade
                 
