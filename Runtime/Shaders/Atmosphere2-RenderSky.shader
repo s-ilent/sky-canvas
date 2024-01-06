@@ -2,6 +2,12 @@ Shader "Hidden/Silent/Atmosphere2/RT/Sky"
 {
     Properties
     {
+        // Clamp to atmosphere thickness
+        _EyeAltitude("Eye Altitude (km)", Range(0.5, 100.0)) = 0.5
+        [IntRange]_Month("Month", Range(0, 11)) = 0.0
+        _AerosolTurbidity("Aerosol Turbidity", Float) = 1.0
+        _GroundAlbedo("Ground Albedo", Color) = (0.3, 0.3, 0.3, 0.3)
+
         _Transmittance("Transmittance LUT", 2D) = "white" {}
     }
 

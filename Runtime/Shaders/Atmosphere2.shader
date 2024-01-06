@@ -8,11 +8,12 @@ Shader "Silent/Skybox/Sky Canvas"
         _Exposure("Main Exposure", Range(0, 10)) = 1.0
         _SunIntensity("Sun Disc Intensity", Range(1, 100)) = 50
         [Space]
+        [Enum(None, 0, Mirror, 1, Only Mirror, 2)]_SkyReflection("Flip Sky Under Horizon", Float) = 0.0
         _SkyDensity ("Sky Density (dark cloudiness)", Range(0, 1)) = 0.0
 
         [Header(Cloud settings ... simulation settings are in the cloud CRT)]
         [ToggleUI]_HideClouds("Hide Clouds", Float) = 0.0
-        [ToggleUI]_CloudReflection("Show Cloud Reflection", Float) = 1.0
+        [Enum(None, 0, Mirror, 1, Only Mirror, 2)]_CloudReflection("Flip Clouds Under Horizon", Float) = 1.0
         _CloudAmbientColDay("Cloud Ambient Colour Daytime", Color) = (1, 1, 1, 1)
         _CloudAmbientColNight("Cloud Ambient Colour Night", Color) = (0.1, 0.1, 0.1, 1)
         _CloudAmbientColMidnight("Cloud Ambient Colour Midnight", Color) = (0.1, 0.1, 0.1, 1)
@@ -85,6 +86,7 @@ Shader "Silent/Skybox/Sky Canvas"
 
             float4 _LightColor0;
             float _SunIntensity;
+            float _SkyReflection;
 
             UNITY_DECLARE_TEXCUBE(_StarTexture);
 
@@ -182,7 +184,11 @@ Shader "Silent/Skybox/Sky Canvas"
                 float3 rayDir = normalize(i.rayDir);
                 float3 sunDir = normalize(_WorldSpaceLightPos0);
 
-                // Prepare some useful data.                 
+                // Prepare some useful data.          
+                float3 rayDirMirrored = float3(rayDir.x, abs(rayDir.y), rayDir.z);
+                float3 rayDirFlipped = float3(rayDir.x, -rayDir.y, rayDir.z);
+
+                // Sky calculations take place in a different coordinate space
                 float3 reoriented_ray_dir = rayDir.xzy;
                 reoriented_ray_dir.z *= -1;
                 float3 ray_origin = float3(0.0, 0.0, EYE_DISTANCE_TO_EARTH_CENTER);
@@ -208,7 +214,7 @@ Shader "Silent/Skybox/Sky Canvas"
                 float cloudyLightFactor = lerp(0.01, 1.0, saturate(pow(1.0 - _SkyDensity, 8.0)));
                 
                 // Sky radiance sampling 
-                float2 skyUVs = directionToSkyUv(rayDir);
+                float2 skyUVs = directionToSkyUv(_SkyReflection > 1 ? rayDirFlipped : _SkyReflection ? rayDirMirrored : rayDir);
 
                 // We could sample the sky once but twice is easier to mess with for clouds
                 float4 skyCol = tex3D(_SkyTexture, float3(skyUVs, _SkyDensity));
@@ -228,8 +234,7 @@ Shader "Silent/Skybox/Sky Canvas"
                 float3 cloudAmbientIntensity = lerp(_CloudAmbientColNight, _CloudAmbientColDay, dayFactor);
                 cloudAmbientIntensity = lerp(cloudAmbientIntensity, _CloudAmbientColMidnight, nightFactor);
 
-                float3 rayDirMirrored = float3(rayDir.x, abs(rayDir.y), rayDir.z);
-                float2 cloudUVs = directionToGbufferUV(rayDirMirrored);
+                float2 cloudUVs = directionToGbufferUV(_CloudReflection > 1 ? rayDirFlipped : _CloudReflection ? rayDirMirrored : rayDir);
 
                 // Offset intertexel position with blue noise to hide interpolation artifacts
                 float2 cloudUVsNoisy = SampleBlueNoise(
@@ -244,6 +249,7 @@ Shader "Silent/Skybox/Sky Canvas"
                 // Sampling clouds is cheap so the toggle just fades them out.
                 // Originally used (rayDir.y > 0) but looks too harsh. Clouds continue below the horizon.
                 if (_CloudReflection < 0.5) clouds *= saturate(skyGroundFactor*12);
+                if (_CloudReflection > 1.5) clouds *= 1 - saturate(skyGroundFactor*12);
                 clouds *= _HideClouds? 0 : 1;
 
                 float cloudFadeFactor =  saturate(exp(-clouds.r * 0.00001));
@@ -292,7 +298,7 @@ Shader "Silent/Skybox/Sky Canvas"
                 // As a workaround we can attenuate the stars by the sky brightness. This avoids needing to deal
                 // with realistic light ranges, which are difficult to calibrate. 
                 float skyLum = dot(skyCol.rgb, 1.0/3.0);
-                skyCol.xyz += (nightSky * 1) / max(1, skyLum * 2000);
+                skyCol.xyz += nightSky / max(1, skyLum * 2000);
 
                 //col.rgb = lerp(skyCol, directCol + ambientCol, alpha);
                 col.rgb = skyCol * (1.0 - alpha) + ambientCol + directCol;

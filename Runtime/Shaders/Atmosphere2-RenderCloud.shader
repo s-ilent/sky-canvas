@@ -11,6 +11,7 @@ Shader "Silent/CustomRenderTexture/Clouds"
         _WindSpeed("Wind Speed", Range(0.0, 20.0)) = 1.0
         _Density("Density", Range(0.01, 0.2)) = 0.05
         _CloudCoverage("Cloud Coverage", Range(0.1, 1.0)) = 0.25
+        _CloudHeightOffset("Height Offset (not recommended)", Float) = 0
 
         [HideInInspector][NonModifiableTextureData]_TANoiseTex ("TANoise", 2D) = "white" {}
     }
@@ -35,6 +36,7 @@ Shader "Silent/CustomRenderTexture/Clouds"
         float _WindSpeed;
         float _Density;
         float _CloudCoverage;
+        float _CloudHeightOffset;
 
         sampler3D _SkyTexture;
 
@@ -178,6 +180,7 @@ float4 march(float3 pos,  float3 end, float3 dir, int depth) {
 
                 float3 dir = rayDir;
                 float3 camPos = float3(0.0, g_radius, 0.0);
+                camPos.y += _CloudHeightOffset * 1000.0;
                 float3 start = camPos + dir * intersectSphere(camPos, dir, sky_b_radius);
                 float3 end = camPos + dir * intersectSphere(camPos, dir, sky_t_radius);
                 float shelldist = (length(end-start));

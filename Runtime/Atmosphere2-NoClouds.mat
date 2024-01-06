@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Atmosphere2
+  m_Name: Atmosphere2-NoClouds
   m_Shader: {fileID: 4800000, guid: d160903a83dce9a4ca4f773fd43db1f6, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -24,7 +24,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _CloudTexture:
-        m_Texture: {fileID: 8600000, guid: ff7a24b7b5f11a94a9d5b12dc750aa0a, type: 2}
+        m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _SkyTexture:
@@ -51,7 +51,7 @@ Material:
     m_Floats:
     - _CloudReflection: 0
     - _Exposure: 10
-    - _HideClouds: 0
+    - _HideClouds: 1
     - _NoClouds: 0
     - _SkyDensity: 0
     - _SkyReflection: 0

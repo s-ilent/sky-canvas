@@ -1,5 +1,6 @@
 #ifndef ATMOSPHERE_COMMON_INCLUDED
 #define ATMOSPHERE_COMMON_INCLUDED
+// https://www.shadertoy.com/view/msXXDS
 /*
  * Copyright (c) 2023 Fernando García Liñán
  *
@@ -24,18 +25,26 @@
 
 // Configurable parameters
 
-#define ANIMATE_SUN 0
-// 0=equirectangular, 1=fisheye, 2=projection
-#define CAMERA_TYPE 2
+float _EyeAltitude;
+int _Month;
+float _AerosolTurbidity;
+float4 _GroundAlbedo;
+
 // 0=Background, 1=Desert Dust, 2=Maritime Clean, 3=Maritime Mineral,
 // 4=Polar Antarctic, 5=Polar Artic, 6=Remote Continental, 7=Rural, 8=Urban
 #define AEROSOL_TYPE 8
 
-static const float SUN_ELEVATION_DEGREES = 0.0;    // 0=horizon, 90=zenith
+#if 0
 static const float EYE_ALTITUDE          = 0.5;    // km
 static const int   MONTH                 = 0;      // 0-11, January to December
 static const float AEROSOL_TURBIDITY     = 1.0;
 static const float4  GROUND_ALBEDO       = 0.3;
+#else
+static const float EYE_ALTITUDE          = _EyeAltitude;
+static const int   MONTH                 = _Month;
+static const float AEROSOL_TURBIDITY     = _AerosolTurbidity;
+static const float4  GROUND_ALBEDO       = _GroundAlbedo;
+#endif
 // Ray marching steps. More steps mean better accuracy but worse performance
 static const int TRANSMITTANCE_STEPS     = 32;
 static const int IN_SCATTERING_STEPS     = 32;
@@ -63,8 +72,6 @@ static const float EARTH_RADIUS = 6371.0; // km
 static const float ATMOSPHERE_THICKNESS = 100.0; // km
 static const float ATMOSPHERE_RADIUS = EARTH_RADIUS + ATMOSPHERE_THICKNESS;
 static const float EYE_DISTANCE_TO_EARTH_CENTER = EARTH_RADIUS + EYE_ALTITUDE;
-static const float SUN_ZENITH_COS_ANGLE = cos(radians(90.0 - SUN_ELEVATION_DEGREES));
-static const float3 SUN_DIR = float3(-sqrt(1.0 - SUN_ZENITH_COS_ANGLE*SUN_ZENITH_COS_ANGLE), 0.0, SUN_ZENITH_COS_ANGLE);
 
 #if ENABLE_SPECTRAL == 1
 // Extraterrestial Solar Irradiance Spectra, units W * m^-2 * nm^-1
@@ -177,14 +184,9 @@ static const float aerosol_background_divided_by_base_density = aerosol_backgrou
 
 float3 get_sun_direction(float time)
 {
-#if ANIMATE_SUN == 0
     float3 sun_dir = -normalize(_WorldSpaceLightPos0).xzy;
     sun_dir.z *= -1;
-    return sun_dir; //SUN_DIR;
-#else
-    float a = sin(time*0.5 - 1.5) * 0.55 + 0.45;
-    return float3(-sqrt(1.0 - a*a), 0.0, a);
-#endif
+    return sun_dir;
 }
 
 /*
