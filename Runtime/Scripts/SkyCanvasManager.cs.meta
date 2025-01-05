@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: c2b7f8cf2a2ee7643a3531a17c6119c0
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - _udonSharpBackingUdonBehaviour: {instanceID: 0}
+  - _atmosphereCloudsCRTMaterial: {fileID: 2100000, guid: c6402e917ba6faf4b8f6e93f4d99a8ca,
+      type: 2}
+  - _atmosphereSkyCRTMaterial: {fileID: 2100000, guid: 697b2f7223ca3ec4b8ec047b4a9473d2,
+      type: 2}
+  - _sunOverride: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

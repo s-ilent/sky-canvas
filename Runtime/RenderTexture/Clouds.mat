@@ -84,8 +84,8 @@ Material:
     - _AbsorptionInCloud: 0.75
     - _BackScattering: -0.55
     - _BumpScale: 1
-    - _CloudCoverage: 1
-    - _CloudHeightOffset: 0
+    - _CloudCoverage: 0.4
+    - _CloudHeightOffset: 0.5
     - _CloudThickness: 3
     - _Cutoff: 0.5
     - _Density: 0.01
@@ -103,11 +103,15 @@ Material:
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
+    - _TemporalFilter: 0
     - _UVSec: 0
     - _WindSpeed: 0.3
     - _ZWrite: 1
     m_Colors:
+    - _CameraPositionOffset: {r: 0, g: 0, b: 0, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
+    - _OverrideSun: {r: -0.69923776, g: 0.4903177, b: 0.5202452, a: 1}
+    - _OverrideTime: {r: 2499.0427, g: 6780.855, b: 0, a: 1}
     - _WindDirection: {r: 1, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []

@@ -2,6 +2,7 @@ Shader "Hidden/Silent/Atmosphere2/RT/Transmittance"
 {
     Properties
     {
+        [IntRange]_AerosolType("Aerosol Type", Range(0, 8)) = 8.0
     }
 
     SubShader
@@ -22,6 +23,8 @@ Shader "Hidden/Silent/Atmosphere2/RT/Transmittance"
             float4 frag(v2f_customrendertexture IN) : COLOR
             {
                 float2 uv = IN.localTexcoord.xy;
+                
+                Aerosol aerosol = getAerosol(_AerosolType);
 
                 float sun_cos_theta = uv.x * 2.0 - 1.0;
                 float3 sun_dir = float3(-sqrt(1.0 - sun_cos_theta*sun_cos_theta), 0.0, sun_cos_theta);
@@ -47,7 +50,8 @@ Shader "Hidden/Silent/Atmosphere2/RT/Transmittance"
                         altitude,
                         aerosol_absorption, aerosol_scattering,
                         molecular_absorption, molecular_scattering,
-                        extinction);
+                        extinction,
+                        aerosol);
 
                     result += extinction * dt;
                 }

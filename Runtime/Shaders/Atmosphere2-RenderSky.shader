@@ -6,13 +6,21 @@ Shader "Hidden/Silent/Atmosphere2/RT/Sky"
         _EyeAltitude("Eye Altitude (km)", Range(0.5, 100.0)) = 0.5
         [IntRange]_Month("Month", Range(0, 11)) = 0.0
         _AerosolTurbidity("Aerosol Turbidity", Float) = 1.0
+        [IntRange]_AerosolType("Aerosol Type", Range(0, 8)) = 8.0
         _GroundAlbedo("Ground Albedo", Color) = (0.3, 0.3, 0.3, 0.3)
+        [Space]
+        _OverrideSun("Override Sun Position", Vector) = (0,0,0,0)
 
-        _Transmittance("Transmittance LUT", 2D) = "white" {}
+        [NoScaleOffset]_Transmittance("Transmittance LUT", 2D) = "white" {}
     }
 
     SubShader
     {
+        Tags 
+        {
+            "LightMode"="ForwardBase"
+            "PassFlags"="OnlyDirectional"
+        }
         Lighting On
         Blend One Zero
 
@@ -24,11 +32,13 @@ Shader "Hidden/Silent/Atmosphere2/RT/Sky"
             // which gives an appropriate colour for use in cloud rendering. 
             float4 compute_inscattering(float3 ray_origin, float3 ray_dir, float t_d, bool forCloud, out float4 transmittance)
             {
-                float3 sun_dir = get_sun_direction(_Time.y);
+                float3 sun_dir = get_sun_direction();
                 float cos_theta = dot(-ray_dir, sun_dir);
 
                 float molecular_phase = molecular_phase_function(cos_theta);
                 float aerosol_phase = aerosol_phase_function(cos_theta);
+
+                Aerosol aerosol = getAerosol(_AerosolType);
 
                 float dt = t_d / float(IN_SCATTERING_STEPS);
 
@@ -53,7 +63,8 @@ Shader "Hidden/Silent/Atmosphere2/RT/Sky"
                         altitude,
                         aerosol_absorption, aerosol_scattering,
                         molecular_absorption, molecular_scattering,
-                        extinction);
+                        extinction,
+                        aerosol);
 
                     float4 transmittance_to_sun = transmittance_from_lut(
                         _Transmittance, sample_cos_theta, normalized_altitude);
@@ -145,11 +156,17 @@ Shader "Hidden/Silent/Atmosphere2/RT/Sky"
                 }
 
                 // Determine what we're outputting
-                const float numLayers = 2.0;
+                const float numLayers = 3.0;
                 float layerID = floor(IN.localTexcoord.z * numLayers);
 
+                bool forSun = layerID == 0;
+                bool forSky = layerID == 1;
+                bool forCloud = layerID == 2;
+
                 float4 transmittance;
-                float4 L = compute_inscattering(ray_origin, ray_dir, t_d, layerID>=1, transmittance);
+                float4 L = compute_inscattering(ray_origin, ray_dir, t_d, forCloud, transmittance);
+
+                if (forSun) L = transmittance;
 
             #if ENABLE_SPECTRAL == 1
                 fragColor = float4(linear_srgb_from_spectral_samples(L), 1.0);

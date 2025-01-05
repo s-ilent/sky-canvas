@@ -25,6 +25,21 @@
 
 // Configurable parameters
 
+float4 _OverrideSun;
+
+float3 get_sun_direction() // for atmosphere
+{
+    float3 ldir = (_OverrideSun.w > 0.5) ? normalize(_OverrideSun.xyz) : normalize(_WorldSpaceLightPos0);
+    float3 sun_dir = -ldir.xzy;
+    sun_dir.z *= -1;
+    return sun_dir;
+}
+
+float3 getLightDirection() // for clouds
+{
+    return _OverrideSun.w > 0.5 ? normalize(_OverrideSun.xyz) : normalize(_WorldSpaceLightPos0);
+}
+
 float _EyeAltitude;
 int _Month;
 float _AerosolTurbidity;
@@ -32,7 +47,8 @@ float4 _GroundAlbedo;
 
 // 0=Background, 1=Desert Dust, 2=Maritime Clean, 3=Maritime Mineral,
 // 4=Polar Antarctic, 5=Polar Artic, 6=Remote Continental, 7=Rural, 8=Urban
-#define AEROSOL_TYPE 8
+// #define AEROSOL_TYPE 8
+float _AerosolType;
 
 #if 0
 static const float EYE_ALTITUDE          = 0.5;    // km
@@ -40,10 +56,10 @@ static const int   MONTH                 = 0;      // 0-11, January to December
 static const float AEROSOL_TURBIDITY     = 1.0;
 static const float4  GROUND_ALBEDO       = 0.3;
 #else
-static const float EYE_ALTITUDE          = _EyeAltitude;
-static const int   MONTH                 = _Month;
-static const float AEROSOL_TURBIDITY     = _AerosolTurbidity;
-static const float4  GROUND_ALBEDO       = _GroundAlbedo;
+#define EYE_ALTITUDE         _EyeAltitude
+#define MONTH                _Month
+#define AEROSOL_TURBIDITY    _AerosolTurbidity
+#define GROUND_ALBEDO        _GroundAlbedo
 #endif
 // Ray marching steps. More steps mean better accuracy but worse performance
 static const int TRANSMITTANCE_STEPS     = 32;
@@ -124,70 +140,90 @@ static const float ozone_mean_monthly_dobson[] = {
  * "A Physically-Based Spatio-Temporal Sky Model"
  * by Guimera et al. (2018).
  */
-#if   AEROSOL_TYPE == 0 // Background
-static const float4 aerosol_absorption_cross_section = float4(4.5517e-19, 5.9269e-19, 6.9143e-19, 8.5228e-19);
-static const float4 aerosol_scattering_cross_section = float4(1.8921e-26, 1.6951e-26, 1.7436e-26, 2.1158e-26);
-static const float aerosol_base_density = 2.584e17;
-static const float aerosol_background_density = 2e6;
-#elif AEROSOL_TYPE == 1 // Desert Dust
-static const float4 aerosol_absorption_cross_section = float4(4.6758e-16, 4.4654e-16, 4.1989e-16, 4.1493e-16);
-static const float4 aerosol_scattering_cross_section = float4(2.9144e-16, 3.1463e-16, 3.3902e-16, 3.4298e-16);
-static const float aerosol_base_density = 1.8662e18;
-static const float aerosol_background_density = 2e6;
-static const float aerosol_height_scale = 2.0;
-#elif AEROSOL_TYPE == 2 // Maritime Clean
-static const float4 aerosol_absorption_cross_section = float4(6.3312e-19, 7.5567e-19, 9.2627e-19, 1.0391e-18);
-static const float4 aerosol_scattering_cross_section = float4(4.6539e-26, 2.721e-26, 4.1104e-26, 5.6249e-26);
-static const float aerosol_base_density = 2.0266e17;
-static const float aerosol_background_density = 2e6;
-static const float aerosol_height_scale = 0.9;
-#elif AEROSOL_TYPE == 3 // Maritime Mineral
-static const float4 aerosol_absorption_cross_section = float4(6.9365e-19, 7.5951e-19, 8.2423e-19, 8.9101e-19);
-static const float4 aerosol_scattering_cross_section = float4(2.3699e-19, 2.2439e-19, 2.2126e-19, 2.021e-19);
-static const float aerosol_base_density = 2.0266e17;
-static const float aerosol_background_density = 2e6;
-static const float aerosol_height_scale = 2.0;
-#elif AEROSOL_TYPE == 4 // Polar Antarctic
-static const float4 aerosol_absorption_cross_section = float4(1.3399e-16, 1.3178e-16, 1.2909e-16, 1.3006e-16);
-static const float4 aerosol_scattering_cross_section = float4(1.5506e-19, 1.809e-19, 2.3069e-19, 2.5804e-19);
-static const float aerosol_base_density = 2.3864e16;
-static const float aerosol_background_density = 2e6;
-static const float aerosol_height_scale = 30.0;
-#elif AEROSOL_TYPE == 5 // Polar Arctic
-static const float4 aerosol_absorption_cross_section = float4(1.0364e-16, 1.0609e-16, 1.0193e-16, 1.0092e-16);
-static const float4 aerosol_scattering_cross_section = float4(2.1609e-17, 2.2759e-17, 2.5089e-17, 2.6323e-17);
-static const float aerosol_base_density = 2.3864e16;
-static const float aerosol_background_density = 2e6;
-static const float aerosol_height_scale = 30.0;
-#elif AEROSOL_TYPE == 6 // Remote Continental
-static const float4 aerosol_absorption_cross_section = float4(4.5307e-18, 5.0662e-18, 4.4877e-18, 3.7917e-18);
-static const float4 aerosol_scattering_cross_section = float4(1.8764e-18, 1.746e-18, 1.6902e-18, 1.479e-18);
-static const float aerosol_base_density = 6.103e18;
-static const float aerosol_background_density = 2e6;
-static const float aerosol_height_scale = 0.73;
-#elif AEROSOL_TYPE == 7 // Rural
-static const float4 aerosol_absorption_cross_section = float4(5.0393e-23, 8.0765e-23, 1.3823e-22, 2.3383e-22);
-static const float4 aerosol_scattering_cross_section = float4(2.6004e-22, 2.4844e-22, 2.8362e-22, 2.7494e-22);
-static const float aerosol_base_density = 8.544e18;
-static const float aerosol_background_density = 2e6;
-static const float aerosol_height_scale = 0.73;
-#elif AEROSOL_TYPE == 8 // Urban
-static const float4 aerosol_absorption_cross_section = float4(2.8722e-24, 4.6168e-24, 7.9706e-24, 1.3578e-23);
-static const float4 aerosol_scattering_cross_section = float4(1.5908e-22, 1.7711e-22, 2.0942e-22, 2.4033e-22);
-static const float aerosol_base_density = 1.3681e20;
-static const float aerosol_background_density = 2e6;
-static const float aerosol_height_scale = 0.73;
-#endif
-static const float aerosol_background_divided_by_base_density = aerosol_background_density / aerosol_base_density;
+struct Aerosol {
+    float4 absorption_cross_section;
+    float4 scattering_cross_section;
+    float base_density;
+    float background_density;
+    float height_scale;
+};
+
+Aerosol getAerosol(int AEROSOL_TYPE) {
+    Aerosol aerosol = (Aerosol)0;
+    switch (AEROSOL_TYPE) {
+        case 0: // Background
+            aerosol.absorption_cross_section = float4(4.5517e-19, 5.9269e-19, 6.9143e-19, 8.5228e-19);
+            aerosol.scattering_cross_section = float4(1.8921e-26, 1.6951e-26, 1.7436e-26, 2.1158e-26);
+            aerosol.base_density = 2.584e17;
+            aerosol.background_density = 2e6;
+            break;
+        case 1: // Desert Dust
+            aerosol.absorption_cross_section = float4(4.6758e-16, 4.4654e-16, 4.1989e-16, 4.1493e-16);
+            aerosol.scattering_cross_section = float4(2.9144e-16, 3.1463e-16, 3.3902e-16, 3.4298e-16);
+            aerosol.base_density = 1.8662e18;
+            aerosol.background_density = 2e6;
+            aerosol.height_scale = 2.0;
+            break;
+        case 2: // Maritime Clean
+            aerosol.absorption_cross_section = float4(6.3312e-19, 7.5567e-19, 9.2627e-19, 1.0391e-18);
+            aerosol.scattering_cross_section = float4(4.6539e-26, 2.721e-26, 4.1104e-26, 5.6249e-26);
+            aerosol.base_density = 2.0266e17;
+            aerosol.background_density = 2e6;
+            aerosol.height_scale = 0.9;
+            break;
+        case 3: // Maritime Mineral
+            aerosol.absorption_cross_section = float4(6.9365e-19, 7.5951e-19, 8.2423e-19, 8.9101e-19);
+            aerosol.scattering_cross_section = float4(2.3699e-19, 2.2439e-19, 2.2126e-19, 2.021e-19);
+            aerosol.base_density = 2.0266e17;
+            aerosol.background_density = 2e6;
+            aerosol.height_scale = 2.0;
+            break;
+        case 4: // Polar Antarctic
+            aerosol.absorption_cross_section = float4(1.3399e-16, 1.3178e-16, 1.2909e-16, 1.3006e-16);
+            aerosol.scattering_cross_section = float4(1.5506e-19, 1.809e-19, 2.3069e-19, 2.5804e-19);
+            aerosol.base_density = 2.3864e16;
+            aerosol.background_density = 2e6;
+            aerosol.height_scale = 30.0;
+            break;
+        case 5: // Polar Arctic
+            aerosol.absorption_cross_section = float4(1.0364e-16, 1.0609e-16, 1.0193e-16, 1.0092e-16);
+            aerosol.scattering_cross_section = float4(2.1609e-17, 2.2759e-17, 2.5089e-17, 2.6323e-17);
+            aerosol.base_density = 2.3864e16;
+            aerosol.background_density = 2e6;
+            aerosol.height_scale = 30.0;
+            break;
+        case 6: // Remote Continental
+            aerosol.absorption_cross_section = float4(4.5307e-18, 5.0662e-18, 4.4877e-18, 3.7917e-18);
+            aerosol.scattering_cross_section = float4(1.8764e-18, 1.746e-18, 1.6902e-18, 1.479e-18);
+            aerosol.base_density = 6.103e18;
+            aerosol.background_density = 2e6;
+            aerosol.height_scale = 0.73;
+            break;
+        case 7: // Rural
+            aerosol.absorption_cross_section = float4(5.0393e-23, 8.0765e-23, 1.3823e-22, 2.3383e-22);
+            aerosol.scattering_cross_section = float4(2.6004e-22, 2.4844e-22, 2.8362e-22, 2.7494e-22);
+            aerosol.base_density = 8.544e18;
+            aerosol.background_density = 2e6;
+            aerosol.height_scale = 0.73;
+            break;
+        case 8: // Urban
+            aerosol.absorption_cross_section = float4(2.8722e-24, 4.6168e-24, 7.9706e-24, 1.3578e-23);
+            aerosol.scattering_cross_section = float4(1.5908e-22, 1.7711e-22, 2.0942e-22, 2.4033e-22);
+            aerosol.base_density = 1.3681e20;
+            aerosol.background_density = 2e6;
+            aerosol.height_scale = 0.73;
+            break;
+        default:
+            // Handle invalid AEROSOL_TYPE here
+            break;
+    }
+    return aerosol;
+}
+
+//static const float aerosol_background_divided_by_base_density = aerosol_background_density / aerosol_base_density;
 
 //-----------------------------------------------------------------------------
 
-float3 get_sun_direction(float time)
-{
-    float3 sun_dir = -normalize(_WorldSpaceLightPos0).xzy;
-    sun_dir.z *= -1;
-    return sun_dir;
-}
 
 /*
  * Helper function to obtain the transmittance to the top of the atmosphere
@@ -279,14 +315,14 @@ float4 get_molecular_absorption_coefficient(float h)
     return ozone_absorption_cross_section * ozone_mean_monthly_dobson[MONTH] * density;
 }
 
-float get_aerosol_density(float h)
+float get_aerosol_density(float h, Aerosol aerosol)
 {
-#if AEROSOL_TYPE == 0 // Only for the Background aerosol type, no dependency on height
-    return aerosol_base_density * (1.0 + aerosol_background_divided_by_base_density);
-#else
-    return aerosol_base_density * (exp(-h / aerosol_height_scale)
-        + aerosol_background_divided_by_base_density);
-#endif
+    if (aerosol.height_scale == 0.0) { // Only for the Background aerosol type, no dependency on height
+        return aerosol.base_density * (1.0 + aerosol.background_density / aerosol.base_density);
+    } else {
+        return aerosol.base_density * (exp(-h / aerosol.height_scale)
+            + aerosol.background_density / aerosol.base_density);
+    }
 }
 
 /*
@@ -298,16 +334,17 @@ void get_atmosphere_collision_coefficients(in float h,
                                            out float4 aerosol_scattering,
                                            out float4 molecular_absorption,
                                            out float4 molecular_scattering,
-                                           out float4 extinction)
+                                           out float4 extinction,
+                                           Aerosol aerosol)
 {
     h = max(h, 0.0); // In case height is negative
 #if ENABLE_AEROSOLS == 0
     aerosol_absorption = (0.0);
     aerosol_scattering = (0.0);
 #else
-    float aerosol_density = get_aerosol_density(h);
-    aerosol_absorption = aerosol_absorption_cross_section * aerosol_density * AEROSOL_TURBIDITY;
-    aerosol_scattering = aerosol_scattering_cross_section * aerosol_density * AEROSOL_TURBIDITY;
+    float aerosol_density = get_aerosol_density(h, aerosol);
+    aerosol_absorption = aerosol.absorption_cross_section * aerosol_density * AEROSOL_TURBIDITY;
+    aerosol_scattering = aerosol.scattering_cross_section * aerosol_density * AEROSOL_TURBIDITY;
 #endif
     molecular_absorption = get_molecular_absorption_coefficient(h);
     molecular_scattering = get_molecular_scattering_coefficient(h);
@@ -329,6 +366,7 @@ float3 linear_srgb_from_spectral_samples(float4 L)
     return mul(M, L);
 }
 
+//-----------------------------------------------------------------------------
 // Sampling hack stuff
 float2 UnStereo(float2 UV)
 {
@@ -351,9 +389,11 @@ float2 SampleBlueNoise(float2 texcoords, float4 screenPos, float4 scaleOffset, f
     screenPosNorm.z = (UNITY_NEAR_CLIP_VALUE >= 0) ? screenPosNorm.z : screenPosNorm.z * 0.5 + 0.5;
     float2 UV = UnStereo(screenPosNorm.xy);
 
-    float4 blueNoise = tex2D(_blueNoise, (floor(float4(UV, 0.0, 0.0) * _ScreenParams) + 
-        float4(floor(_Time.y * _blueNoise_TexelSize.zw), 0.0, 0.0)) * _blueNoise_TexelSize.xy);
-    float timeScaled = _Time.y * 3.0;
+    UV = floor(UV * _ScreenParams);
+    UV += floor(_Time.x * _blueNoise_TexelSize.zw);
+
+    float4 blueNoise = tex2D(_blueNoise, UV * _blueNoise_TexelSize.xy);
+    float timeScaled = frac(_Time.y * 3.0);
 
     float2 lerpResult = lerp(blueNoise, blueNoise.gb, saturate(floor((timeScaled % 0.3333333) * 12.0)));
     lerpResult = lerp(lerpResult, blueNoise.br, saturate(floor((timeScaled % 0.3333333) * 6.0)));
@@ -364,5 +404,22 @@ float2 SampleBlueNoise(float2 texcoords, float4 screenPos, float4 scaleOffset, f
     return texelSize * float4(floor(uv_scaled) + frac(uv_scaled) + (lerpResult.rg - 0.5) * uv_clamped, 0.0, 0.0);
 }
 
+//-----------------------------------------------------------------------------
+// Code from https://www.shadertoy.com/view/4XffzH
+// MIT License - Copyright (c) 2024 Felix Westin
+
+float GetSunDisc(float3 rayDir, float3 lightDir, float sunDiscSize = 1.0)
+{
+    const float A = cos(0.00436 * sunDiscSize);
+	float costh = dot(rayDir, lightDir);
+	float disc = sqrt(smoothstep(A, 1.0, costh));
+	return disc;
+}
+
+//-----------------------------------------------------------------------------
+float3 r3_modified(in float idx, in float3 seed)
+{
+    return frac(seed + float(idx) * float3(0.180827486604, 0.328956393296, 0.450299522098));
+}
 
 #endif // ATMOSPHERE_COMMON_INCLUDED

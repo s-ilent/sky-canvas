@@ -25,7 +25,7 @@ CustomRenderTexture:
   m_SRGB: 0
   m_UseDynamicScale: 0
   m_BindMS: 0
-  m_EnableCompatibleFormat: 1
+  m_EnableCompatibleFormat: 0
   m_EnableRandomWrite: 0
   m_TextureSettings:
     serializedVersion: 2
@@ -42,7 +42,7 @@ CustomRenderTexture:
   m_InitSource: 0
   m_InitMaterial: {fileID: 0}
   m_InitColor: {r: 1, g: 1, b: 1, a: 1}
-  m_InitTexture: {fileID: 0}
+  m_InitTexture: {fileID: 2800000, guid: 0bfaf6a2763e3f94bb50e7413a800af2, type: 3}
   m_UpdateMode: 1
   m_InitializationMode: 0
   m_UpdateZoneSpace: 0

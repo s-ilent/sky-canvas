@@ -2,11 +2,13 @@ Shader "Silent/Skybox/Sky Canvas"
 {
     Properties
     {
-        [NoScaleOffset]_SkyTexture ("Sky Texture", 3D) = "" {}
-        [NoScaleOffset]_CloudTexture ("Cloud Texture", 2D) = "" {}
+        [NoScaleOffset]_SkyTexture ("Sky Texture", 3D) = "black" {}
+        [NoScaleOffset]_CloudTexture ("Cloud Texture", 2D) = "black" {}
 
         _Exposure("Main Exposure", Range(0, 10)) = 1.0
         _SunIntensity("Sun Disc Intensity", Range(1, 100)) = 50
+        _SunSize("Sun Disc Size", Range(0, 10)) = 1.0
+        [ToggleUI]_UseMainLightForSun("Use Main Light for Sun Colour", Float) = 0.0
         [Space]
         [Enum(None, 0, Mirror, 1, Only Mirror, 2)]_SkyReflection("Flip Sky Under Horizon", Float) = 0.0
         _SkyDensity ("Sky Density (dark cloudiness)", Range(0, 1)) = 0.0
@@ -14,9 +16,18 @@ Shader "Silent/Skybox/Sky Canvas"
         [Header(Cloud settings ... simulation settings are in the cloud CRT)]
         [ToggleUI]_HideClouds("Hide Clouds", Float) = 0.0
         [Enum(None, 0, Mirror, 1, Only Mirror, 2)]_CloudReflection("Flip Clouds Under Horizon", Float) = 1.0
+
+        [Space]
         _CloudAmbientColDay("Cloud Ambient Colour Daytime", Color) = (1, 1, 1, 1)
         _CloudAmbientColNight("Cloud Ambient Colour Night", Color) = (0.1, 0.1, 0.1, 1)
         _CloudAmbientColMidnight("Cloud Ambient Colour Midnight", Color) = (0.1, 0.1, 0.1, 1)
+        [Space]
+        _CloudInteriorDarkening("Cloud Interior Darkening", Range(0, 1)) = 1.0
+
+		[Header(Clouds Extra Noise)]
+		_NoiseMap ("Noise Map for Clouds", 2D) = "white" {}
+        _NoiseScale("Noise Scale", Float) = 1.0
+        _NoisePow("Noise Strength", Float) = 1.0
 
         [Header(Night Sky)]
         [ToggleUI]_UseStars("Use Procedural Stars", Float) = 1.0
@@ -64,7 +75,7 @@ Shader "Silent/Skybox/Sky Canvas"
             struct v2f
             {
                 float4 vertex : SV_POSITION;
-                float4 objectOrigin : ORIGIN;
+                //float4 objectOrigin : ORIGIN;
                 float3 rayOrigin : RAYORIGIN;
                 float3 rayDir : RAYDIR;
                 float3 screenPos : SCREENPOS;
@@ -86,7 +97,9 @@ Shader "Silent/Skybox/Sky Canvas"
 
             float4 _LightColor0;
             float _SunIntensity;
+            float _SunSize;
             float _SkyReflection;
+            float _UseMainLightForSun;
 
             UNITY_DECLARE_TEXCUBE(_StarTexture);
 
@@ -103,6 +116,9 @@ Shader "Silent/Skybox/Sky Canvas"
             float _NoiseScale;
             float _NoisePow;
 
+            float _CloudInteriorDarkening;
+
+
             v2f vert (appdata v)
             {
                 v2f o;
@@ -111,7 +127,7 @@ Shader "Silent/Skybox/Sky Canvas"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO( o );
 
                 o.vertex = UnityObjectToClipPos(v.vertex);
-                o.objectOrigin = mul(unity_ObjectToWorld, float4(0.0,0.0,0.0,1.0) );
+                //o.objectOrigin = mul(unity_ObjectToWorld, float4(0.0,0.0,0.0,1.0) );
 
                 // I saw these ortho shadow substitutions in a few places, but bgolus explains them
                 // https://bgolus.medium.com/rendering-a-sphere-on-a-quad-13c92025570c
@@ -175,6 +191,125 @@ Shader "Silent/Skybox/Sky Canvas"
                 return mul(rotationMatrix, target);
             }
 
+            // https://www.shadertoy.com/view/WtyXRy
+            // MIT License - Copyright © 2020 Inigo Quilez
+
+            float4 textureQuadratic(sampler2D samLinear, float2 p, float4 texelSize)
+            {
+                float texSize = texelSize.zw;
+
+                //return tex2D(samLinear, p);
+                
+                #if 1
+                    // Roger/iq style
+                    p = p * texSize;
+                    float2 i = floor(p);
+                    float2 f = frac(p);
+                    p = i + f * 0.5;
+                    p /= texSize;
+                    //f = f * f * (3.0 - 2.0 * f); // optional for extra sweet
+                    float w = 0.5 / texSize;
+                    return lerp(lerp(tex2D(samLinear, p + float2(0, 0)),
+                                    tex2D(samLinear, p + float2(w, 0)), f.x),
+                                lerp(tex2D(samLinear, p + float2(0, w)),
+                                    tex2D(samLinear, p + float2(w, w)), f.x), f.y);
+                
+                #else
+                    // paniq style (https://www.shadertoy.com/view/wtXXDl)
+                    float2 f = frac(p * texSize);
+                    float2 c = (f * (f - 1.0) + 0.5) / texSize;
+                    float2 w0 = p - c;
+                    float2 w1 = p + c;
+                    return (tex2D(samLinear, float2(w0.x, w0.y)) +
+                            tex2D(samLinear, float2(w0.x, w1.y)) +
+                            tex2D(samLinear, float2(w1.x, w1.y)) +
+                            tex2D(samLinear, float2(w1.x, w0.y))) / 4.0;
+                #endif    
+            }
+
+            struct SkyData
+            {
+                float4 transmittance;
+                float4 skyCol;
+                float4 denseCol;
+            };
+
+            SkyData getSky(float3 rayDir)
+            {
+                const float3 rayDirMirrored = float3(rayDir.x, abs(rayDir.y), rayDir.z);
+                const float3 rayDirFlipped = float3(rayDir.x, -rayDir.y, rayDir.z);
+                float2 skyUVs = directionToSkyUv(_SkyReflection > 1 ? rayDirFlipped : _SkyReflection ? rayDirMirrored : rayDir);
+                
+                SkyData sky = (SkyData)0;
+
+                sky.transmittance = tex3D(_SkyTexture, float3(skyUVs, 0.0));
+                sky.skyCol = tex3D(_SkyTexture, float3(skyUVs, lerp(0.5, 1.0, _SkyDensity)));
+                sky.denseCol = tex3D(_SkyTexture, float3(skyUVs, 1.0));
+
+                return sky;
+            }
+
+            struct CloudData
+            {
+                float distance;
+                float direct;
+                float ambient;
+                float alpha;
+            };
+
+			inline float revertOrZero (float value)
+			{
+				float revert = 1 / value;
+				if (value == 0) return 0;
+				return revert;
+			}
+
+			inline float4 createTextureNoise (float2 coord, float totalScale, float2 speed)
+			{
+				float totalSmallness = revertOrZero(totalScale);
+			    static const float scaleBase = 10; 
+				return tex2D(_NoiseMap, (coord + speed + totalScale * scaleBase) * totalSmallness);
+			}
+
+            CloudData getClouds(float3 rayDir, v2f i, float skyGroundFactor)
+            {
+                if (_HideClouds) return (CloudData)0;
+                const float3 rayDirMirrored = float3(rayDir.x, abs(rayDir.y), rayDir.z);
+                const float3 rayDirFlipped = float3(rayDir.x, -rayDir.y, rayDir.z);
+
+                rayDir = _CloudReflection > 1 ? rayDirFlipped : _CloudReflection ? rayDirMirrored : rayDir;
+                
+                
+				float sideAngle = atan2(rayDir.x, rayDir.z) / (PI * 2);
+                float2 farWindUV = frac(sideAngle * float2(35, rayDir.y * 35));
+				float4 farWindNoise = createTextureNoise(_NoiseScale * farWindUV * 2, 1, float2(_Time.y * 0.0012, _Time.y * 0.0012)) * 2 - 1;
+				float4 ovalWindNoise = createTextureNoise(_NoiseScale * rayDir.xz * 2, 1, float2(_Time.y * 0.03, _Time.y * 0.03)) * 2 - 1;
+				rayDir += normalize(lerp(farWindNoise, ovalWindNoise, saturate(rayDir.y))) * 0.01 * _NoisePow;
+                rayDir = normalize(rayDir);
+
+                float2 cloudUVs = directionToGbufferUV(rayDir);
+
+                // Offset intertexel position with blue noise to hide interpolation artifacts
+                float2 cloudUVsNoisy = SampleBlueNoise(
+                    cloudUVs, 
+                    float4(i.screenPos.xy, i.vertex.z, i.screenPos.z), 
+                    float4((1).xx, (0).xx), 
+                    _CloudTexture_TexelSize);
+
+                float4 cloudTex = textureQuadratic(_CloudTexture, cloudUVsNoisy, _CloudTexture_TexelSize);
+
+                // Originally used (rayDir.y > 0) but looks too harsh. Clouds continue below the horizon a bit.
+                if (_CloudReflection < 0.5) cloudTex *= saturate(skyGroundFactor*12);
+                if (_CloudReflection > 1.5) cloudTex *= 1 - saturate(skyGroundFactor*12);
+                
+                CloudData clouds = (CloudData)0;
+                clouds.distance = cloudTex.r;
+                clouds.direct = cloudTex.g;
+                clouds.ambient = cloudTex.b;
+                clouds.alpha = cloudTex.a;
+
+                return clouds;
+            }
 
             fixed4 frag (v2f i) : SV_Target
             {
@@ -184,128 +319,117 @@ Shader "Silent/Skybox/Sky Canvas"
                 float3 rayDir = normalize(i.rayDir);
                 float3 sunDir = normalize(_WorldSpaceLightPos0);
 
-                // Prepare some useful data.          
-                float3 rayDirMirrored = float3(rayDir.x, abs(rayDir.y), rayDir.z);
-                float3 rayDirFlipped = float3(rayDir.x, -rayDir.y, rayDir.z);
-
                 // Sky calculations take place in a different coordinate space
                 float3 reoriented_ray_dir = rayDir.xzy;
                 reoriented_ray_dir.z *= -1;
-                float3 ray_origin = float3(0.0, 0.0, EYE_DISTANCE_TO_EARTH_CENTER);
-                float atmos_dist  = ray_sphere_intersection(ray_origin, reoriented_ray_dir, ATMOSPHERE_RADIUS);
-                float ground_dist = ray_sphere_intersection(ray_origin, reoriented_ray_dir, EARTH_RADIUS);
-                float t_d;
+                float3 sky_ray_origin = float3(0.0, 0.0, EYE_DISTANCE_TO_EARTH_CENTER);
+                float atmos_dist  = ray_sphere_intersection(sky_ray_origin, reoriented_ray_dir, ATMOSPHERE_RADIUS);
+                float ground_dist = ray_sphere_intersection(sky_ray_origin, reoriented_ray_dir, EARTH_RADIUS);
+                float distanceToSurface;
                 if (EYE_ALTITUDE < ATMOSPHERE_THICKNESS) {
                     // We are inside the atmosphere
                     if (ground_dist < 0.0) {
                         // No ground collision, use the distance to the outer atmosphere
-                        t_d = atmos_dist;
+                        distanceToSurface = atmos_dist;
                     } else {
                         // We have a collision with the ground, use the distance to it
-                        t_d = ground_dist;
+                        distanceToSurface = ground_dist;
                     }
                 }
+
                 float dayNightFactor = clamp(dot(sunDir, float3(0, 1, 0)), -1, 1);
                 float dayFactor = saturate(dayNightFactor);
                 float nightFactor = saturate(-dayNightFactor);
-                float skyGroundFactor = saturate(atmos_dist/1000 - 1); 
+                float skyGroundFactor = saturate(atmos_dist/1070 - 1); 
+                float sunGroundFactor = saturate(atmos_dist/1200 - 1); 
 
                 // When the user raises the density, the sky should get darker to simulate greater degrees of cloudiness.
                 float cloudyLightFactor = lerp(0.01, 1.0, saturate(pow(1.0 - _SkyDensity, 8.0)));
                 
                 // Sky radiance sampling 
-                float2 skyUVs = directionToSkyUv(_SkyReflection > 1 ? rayDirFlipped : _SkyReflection ? rayDirMirrored : rayDir);
+                SkyData sky = getSky(rayDir);
 
-                // We could sample the sky once but twice is easier to mess with for clouds
-                float4 skyCol = tex3D(_SkyTexture, float3(skyUVs, _SkyDensity));
-                float4 denseCol = tex3D(_SkyTexture, float3(skyUVs, 1));
+                float3 sunRadiance = sky.transmittance;
                 
-				// When baking reflection probes, the skybox is not told the colour of the sun
-				// to avoid doubled sun reflections. However, this can look bad visually, especially
-				// when a realtime light is not present in the scene. To avoid this, Unity's regular
-				// procedural skybox uses this workaround which clamps the max intensity of the sky's sun. 
-            	half lightColorIntensity = clamp(length(_LightColor0.xyz), 0.25, 1) ;
-				float3 sunRadiance = _LightColor0.xyz / lightColorIntensity; 
+                if (_UseMainLightForSun)
+                {
+                    // When baking reflection probes, the skybox is not told the colour of the sun
+                    // to avoid doubled sun reflections. However, this can look bad visually, especially with baked
+                    // light when a realtime light is not present in the scene. To avoid this, Unity's regular
+                    // procedural skybox uses this workaround which clamps the max intensity of the sky's sun. 
+                    half lightColorIntensity = clamp(length(_LightColor0.xyz), 0.25, 1) ;
+                    float3 sunRadiance = _LightColor0.xyz / lightColorIntensity; 
 
-				float sunAttenuation = smoothstep(0.9999891, 1, dot(rayDir, sunDir));
-                sunAttenuation *= skyGroundFactor * cloudyLightFactor;
+                    if (length(_LightColor0.xyz == 0.0)) sunRadiance = 4.0;
+                }
+
+				float sunAttenuation = GetSunDisc(rayDir, sunDir, _SunSize);
+                sunAttenuation *= sunGroundFactor * cloudyLightFactor;
 
                 // Clouds 
                 float3 cloudAmbientIntensity = lerp(_CloudAmbientColNight, _CloudAmbientColDay, dayFactor);
                 cloudAmbientIntensity = lerp(cloudAmbientIntensity, _CloudAmbientColMidnight, nightFactor);
 
-                float2 cloudUVs = directionToGbufferUV(_CloudReflection > 1 ? rayDirFlipped : _CloudReflection ? rayDirMirrored : rayDir);
+                CloudData clouds = getClouds(rayDir, i, skyGroundFactor);
 
-                // Offset intertexel position with blue noise to hide interpolation artifacts
-                float2 cloudUVsNoisy = SampleBlueNoise(
-                    cloudUVs, 
-                    float4(i.screenPos.xy, i.vertex.z, i.screenPos.z), 
-                    float4((1).xx, (0).xx), 
-                    _CloudTexture_TexelSize);
+                // Fudged value to fade out clouds far away.
+                // Todo: Make tuneable
+                float cloudFadeOut = exp2(-0.0004 * clouds.distance);
+                //cloudAlpha = lerp(0, cloudAlpha, cloudFadeOut);
+                float cloudOcclusion = 1.0 - saturate(clouds.alpha * 1);//pow(1.0 - cloudAlpha, 1.0);
 
-                float3 col = 0;
-                float4 clouds = tex2D(_CloudTexture, cloudUVsNoisy);
-
-                // Sampling clouds is cheap so the toggle just fades them out.
-                // Originally used (rayDir.y > 0) but looks too harsh. Clouds continue below the horizon.
-                if (_CloudReflection < 0.5) clouds *= saturate(skyGroundFactor*12);
-                if (_CloudReflection > 1.5) clouds *= 1 - saturate(skyGroundFactor*12);
-                clouds *= _HideClouds? 0 : 1;
-
-                float cloudFadeFactor =  saturate(exp(-clouds.r * 0.00001));
-
-                clouds *= cloudFadeFactor; // todo: distance fade
-                
-                float distanceToCloud, sunLighting, ambientLighting, alpha;
-                distanceToCloud = clouds.r;
-                sunLighting = clouds.g;
-                ambientLighting = clouds.b;
-                alpha = clouds.a;
-
-
-                float cloudOcclusion = pow(1.0 - alpha, 1.0);
 
                 // Stars and night sky
 				float3 nightSky = 0.0;
                 // float3 nightRayDir = rotateVector(rayDir, cross(sunDir, float3(0, 1, 0)), _SinTime * 2.0 * PI );
                 float3 nightRayDir = rotateVector(rayDir, _RotationParams.xyz, _RotationParams.w * 2.0 * PI );
+
+                float cloudOcc3 = cloudOcclusion * cloudOcclusion * cloudOcclusion;
                 
                 if (_UseStars)
                 {
                     float2 sp = convertToSphericalCoordinates(nightRayDir.xzy).yz;
 
-                    nightSky += stars(sp, 0);
-                    nightSky = saturate(pow(nightSky, 2.0)) * _StarIntensity;
+                    // Stars are very far away, so occlusion should be done before the intensity tweaking. 
+                    nightSky += stars(sp, 0) * cloudOcc3;
+                    nightSky = (pow(nightSky, 3.0)) * 0.001;
+                    nightSky *= _StarIntensity * skyGroundFactor;
                 }
                 if (_UseStarsTexture)
                 {
-                    nightSky += UNITY_SAMPLE_TEXCUBE(_StarTexture, nightRayDir) * _StarTextureIntensity;
+                    nightSky += UNITY_SAMPLE_TEXCUBE(_StarTexture, nightRayDir) * 0.001 * _StarTextureIntensity * cloudOcc3;
                 }
+                
                 // Fade out at horizon smoothly
                 nightSky *= skyGroundFactor;
                 // Fade out at cloud edges
                 nightSky *= cloudOcclusion;
-
-                float3 directCol = sunLighting * sunRadiance * denseCol; //tex3D(_SkyTexture, float3(skyUVs, sunLighting*10));
-                //float3 ambientCol = lerp(skyCol, denseCol, ambientLighting) * lerp(0.8, 1.0, ambientLighting); 
-                float3 ambientCol = skyCol; 
-                ambientCol = lerp(ambientCol, cloudAmbientIntensity, (ambientLighting)); 
-                // todo: at night time, use 1-ambientLighting 
-
-                skyCol.xyz += cloudOcclusion * sunAttenuation * _LightColor0.xyz * _SunIntensity;
                 
-                // In real life, stars are always visible, but the atmosphere is too bright for us to see them.
+                float3 finalSky = 0;
+
+                // Use the alpha of the clouds as a hint towards their density to darken their insides 
+                // and make the sunlight spreading through the edges more apparent
+                float cloudFakeShadowPow = lerp(1.0, 1.0 - clouds.alpha, _CloudInteriorDarkening);
+                float cloudFade = clouds.alpha * cloudFadeOut;
+                float3 cloudCol = clouds.direct * sky.transmittance * sky.denseCol * cloudFakeShadowPow;
+                cloudCol += clouds.ambient * sky.denseCol * cloudFakeShadowPow;
+
+                finalSky = sky.skyCol;
+                finalSky += sunAttenuation * cloudFakeShadowPow * sunRadiance * _SunIntensity;
+
+                finalSky = lerp(finalSky + cloudCol, cloudCol, cloudFade);
+                finalSky += lerp(clouds.direct, 0, clouds.alpha) * sky.transmittance * sky.denseCol;
+                finalSky += lerp(clouds.ambient, 0, clouds.alpha) * sky.transmittance * cloudAmbientIntensity;
+
+                // In the real world, stars are always visible, but the atmosphere is too bright for us to see them.
                 // As a workaround we can attenuate the stars by the sky brightness. This avoids needing to deal
                 // with realistic light ranges, which are difficult to calibrate. 
-                float skyLum = dot(skyCol.rgb, 1.0/3.0);
-                skyCol.xyz += nightSky / max(1, skyLum * 2000);
+                float skyLum = dot(sky.skyCol.rgb, 1.0/3.0);
+                finalSky.xyz += nightSky / max(1, skyLum * 2000);
 
-                //col.rgb = lerp(skyCol, directCol + ambientCol, alpha);
-                col.rgb = skyCol * (1.0 - alpha) + ambientCol + directCol;
+                finalSky *= exp2(_Exposure) * cloudyLightFactor;
 
-                col *= _Exposure * cloudyLightFactor;
-
-                return float4(col, 1.0);
+                return float4(finalSky, 1.0);
             }
             ENDCG
         }
